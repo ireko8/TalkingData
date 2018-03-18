@@ -14,16 +14,18 @@ class NNManager():
                  version,
                  model,
                  batch_size,
-                 train_cols):
+                 train_cols,
+                 proc_per_gen=None):
         
         self.name = name
         self.version = version
         self.model = model
         self.batch_size = batch_size
         self.train_cols = train_cols
+        self.proc_per_gen = proc_per_gen
 
         ver_path = f'model/{name}/{version}/'
-        Path(ver_path).mkdir(exist_ok=True)
+        Path(ver_path).mkdir(exist_ok=True, parents=True)
         
         self.dump_path = ver_path + 'weights.hdf5'
         self.csv_log_path = ver_path + 'epochs.csv'
@@ -68,6 +70,9 @@ class NNManager():
                 batch_df = base_df.iloc[batch_df_id]
                 x_batch = batch_df[self.train_cols]
 
+                if self.proc_per_gen:
+                    x_batch = self.proc_per_gen(x_batch)
+
                 if mode != 'test':
                     y_batch = batch_df.is_attributed.values
                     yield x_batch, y_batch
@@ -78,9 +83,8 @@ class NNManager():
     def calc_steps(self, df_size):
         return int(np.ceil(df_size/self.batch_size))
         
-    def learn(self, train_df, valid_df, train_cols,
+    def learn(self, train_df, valid_df,
               sample_size,
-              validation_steps,
               epochs=20):
         train_gen = self.balanced_data_gen(train_df,
                                            sample_size=sample_size)
@@ -99,7 +103,7 @@ class NNManager():
                                            validation_steps=valid_steps)
         return history
 
-    def predict_generator(self, test_df, train_cols):
+    def predict_generator(self, test_df):
         steps = self.calc_steps(len(test_df))
         test_gen = self.balanced_data_gen(test_df,
                                           mode='test')

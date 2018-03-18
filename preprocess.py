@@ -2,7 +2,7 @@ import pandas as pd
 import config
 
 
-def preprocess_for_nn(df, train_len=None):
+def preprocess_for_nn(df):
     df['click_hour'] = pd.to_datetime(df.click_time).dt.hour
 
     train_cols = ['app', 'device', 'ip', 'os', 'channel', 'click_hour']
@@ -20,13 +20,4 @@ def preprocess_for_nn(df, train_len=None):
         embedded_col_config = [col, value_dim, config.EMBEDD_DIM[col]]
         embedd_config.append(embedded_col_config)
 
-    if train_len:
-        train_X = df[:train_len, train_cols]
-        train_y = df[:train_len].is_attributed
-        test_X = df[train_len:, train_cols]
-    else:
-        train_X = df[train_cols]
-        train_y = df.is_attributed
-        test_X = None
-
-    return train_X, train_y, test_X, embedd_config
+    return df, embedd_config

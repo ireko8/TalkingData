@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import random
 import gc
 import numpy as np
