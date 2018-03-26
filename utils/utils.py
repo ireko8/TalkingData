@@ -1,4 +1,5 @@
 from datetime import datetime
+import inspect
 import random
 import gc
 import numpy as np
@@ -27,3 +28,11 @@ def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
     tf.set_random_seed(seed)
+
+
+def df_to_list(df):
+    return [df[c] for c in df.columns]
+
+
+def dump_module(mod_name):
+    return inspect.getsource(mod_name)

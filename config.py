@@ -1,16 +1,19 @@
-UN_THR = 5
-
-TRAIN_COLS = ['ip',
-              'app',
+TRAIN_COLS = ['app',
               'device',
               'os',
               'channel',
               'click_hour']
-EMBEDD_DIM = {'ip': 100,
-              'app': 20,
-              'device': 20,
-              'os': 15,
-              'channel': 20,
+EMBEDD_DIM = {'app': 50,
+              'device': 50,
+              'os': 50,
+              'channel': 50,
               'click_hour': 3}
-SAMPLE_SIZE = 10000
+UN_THR = {'app': 10,
+          'device': 10,
+          'os': 10,
+          'channel': 10,
+          'click_hour': 10}
+SAMPLE_SIZE = 75000
+BATCH_SIZE = 1024
+EPOCHS = 50
 TRAIN_PATH = './input/debug.csv'
