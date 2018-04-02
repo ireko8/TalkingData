@@ -34,5 +34,16 @@ def df_to_list(df):
     return [df[c] for c in df.columns]
 
 
+def df_to_onehot(df):
+    return pd.get_dummies(df)
+
+
 def dump_module(mod_name):
     return inspect.getsource(mod_name)
+
+
+def rank_average(prob_list):
+    """todo: examine performance of rankdata and np.argsort
+    """
+    probs = np.array(prob_list)
+    return np.argsort(probs)/probs.shape[0]

@@ -49,7 +49,7 @@ class Logger:
             self.logger.info(f"Execution {name} end at {end_time}")
             self.logger.info(f"Execution Time : {td}")
             self.logger.info("\n")
-    
+
     def __getattr__(self, attr):
         """
         for calling logging class attribute

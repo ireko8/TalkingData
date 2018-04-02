@@ -51,10 +51,10 @@ def experiment():
         
         fold_log_path = cv_log_path + f'fold_{num}/'
         train_df, test_df = df.loc[train_index], df.loc[test_index]
-        train_df, test_df = proc_xgb(train_df,
-                                     test_df,
-                                     ['ip'],
-                                     cv_logger)
+        # train_df, test_df = proc_xgb(train_df,
+        #                              test_df,
+        #                              ['ip'],
+        #                              cv_logger)
 
         # with cv_logger.interval_timer("Preprocess"):
         #     train_df, test_df, conf = proc_sparse_nn(train_df,

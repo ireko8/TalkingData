@@ -1,5 +1,6 @@
 from pathlib import Path
 import numpy as np
+import pandas as pd
 from sklearn.metrics import roc_auc_score
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.callbacks import ReduceLROnPlateau
@@ -80,11 +81,20 @@ class NNManager():
                           sample_size=None):
         """balanced data generator for training
         """
+
+        pos_idx = df[df.is_attributed == 1].index.values
+        neg_idx = df[df.is_attributed == 0].index.values
+        
         while True:
-            grouped = df.groupby('is_attributed')
-            base_df = grouped.apply(lambda x: x.sample(sample_size))
+            pos_sample = np.random.choice(pos_idx, sample_size)
+            neg_sample = np.random.choice(neg_idx, sample_size)
+            sample_idx = np.concatenate([pos_sample, neg_sample])
+            base_df = df.loc[sample_idx]
             base_id = np.random.permutation(len(base_df))
-            # print("ip count", len(base_df.ip.unique()))
+
+            pos_size = len(base_df[base_df.is_attributed == 1])
+            neg_size = len(base_df[base_df.is_attributed == 0])
+            assert(pos_size == neg_size)
 
             for start in range(0, len(base_df), self.batch_size):
                 end = min(start + self.batch_size, len(base_df))
@@ -114,7 +124,10 @@ class NNManager():
         steps_per_epoch = self.calc_steps(data_size)
 
         # validation data
-        valid_X = self.proc_per_gen(valid_df[self.train_cols])
+        if self.proc_per_gen:
+            valid_X = self.proc_per_gen(valid_df[self.train_cols])
+        else:
+            valid_X = valid_df[self.train_cols]
         valid_y = valid_df.is_attributed
         valid_data = (valid_X, valid_y)
 
