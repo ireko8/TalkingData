@@ -4,20 +4,30 @@ import random
 import gc
 import numpy as np
 import pandas as pd
+import dask.dataframe as dd
 import tensorflow as tf
 
 
-def load_csv(fname, n_rows=None, sampling=None):
+def load_csv(fname,
+             n_rows=None,
+             sampling=None,
+             dtypes=None,
+             parse_dates=None):
     if n_rows:
-        df = pd.read_csv(fname, n_rows=n_rows)
+        df = pd.read_csv(fname,
+                         n_rows=n_rows,
+                         dtype=dtypes,
+                         parse_dates=parse_dates)
     else:
-        df = pd.read_csv(fname)
+        df = pd.read_csv(fname,
+                         dtype=dtypes,
+                         parse_dates=parse_dates)
 
     if sampling:
         df = df.sample(sampling)
 
     gc.collect()
-    return df
+    return dd.from_pandas(df, npartitions=8)
 
 
 def now():

@@ -1,12 +1,14 @@
 from pathlib import Path
 from pprint import pformat
 import numpy as np
+import dask.dataframe as dd
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import roc_auc_score
 from xgboost.sklearn import XGBClassifier
 from preprocess import proc_sparse_nn, proc_all, proc_xgb
 from make_features import make_td
 import config
+from validation import timeseries_cv
 from model.mlp import sparse_mlp
 from utils.manager import NNManager
 from utils.logger import Logger
@@ -31,15 +33,20 @@ def experiment():
     cv_logger.info(dump_module(config))
 
     with cv_logger.interval_timer("Data Load"):
-        df = load_csv(config.TRAIN_PATH)
+        df = load_csv(config.TRAIN_PATH,
+                      dtypes=config.TRAIN_DTYPES,
+                      parse_dates=config.TRAIN_PARSE_DATES)
         with cv_logger.interval_timer("td"):
             df = make_td(df, ['ip', 'os', 'app', 'device'], cv_logger)
         df = proc_all(df)
+        df = df.compute().reset_index()
         # df.drop(['ip'], axis=1)
         cv_logger.info(f"df shape: {df.shape}")
     
-    skf = StratifiedKFold(n_splits=5, shuffle=True)
-    split_gen = enumerate(skf.split(df[config.TRAIN_COLS], df.is_attributed))
+    # skf = StratifiedKFold(n_splits=5, shuffle=True)
+    # split_gen = enumerate(skf.split(df[config.TRAIN_COLS], df.is_attributed))
+    split_gen = enumerate(timeseries_cv(df,
+                                        config.SEP_TIME))
 
     cv_logger.info("cross validation start")
     cv_logger.double_kiritori()
@@ -51,10 +58,12 @@ def experiment():
         
         fold_log_path = cv_log_path + f'fold_{num}/'
         train_df, test_df = df.loc[train_index], df.loc[test_index]
-        train_df, test_df = proc_xgb(train_df,
-                                     test_df,
-                                     ['ip'],
-                                     cv_logger)
+        train_df.drop('click_time', axis=1, inplace=True)
+        test_df.drop('click_time', axis=1, inplace=True)
+        # train_df, test_df = proc_xgb(train_df,
+        #                              test_df,
+        #                              ['ip'],
+        #                              cv_logger)
 
         # with cv_logger.interval_timer("Preprocess"):
         #     train_df, test_df, conf = proc_sparse_nn(train_df,
@@ -84,7 +93,7 @@ def experiment():
         cv_logger.info("XGB Baseline validation")
         xgb = XGBClassifier(n_estimators=400, n_jobs=8)
         conf = list(train_df.columns)
-        conf.remove('is_attributed')
+        conf.remove(['click_time', 'is_attributed'])
         eval_set = [(train_df[conf], train_df.is_attributed),
                     (test_df[conf], test_df.is_attributed)]
         xgb.fit(train_df[conf],

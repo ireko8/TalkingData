@@ -1,11 +1,12 @@
-import config
+import pandas as pd
 
 
-def time_series_cv(df, sep_time):
+def timeseries_cv(df, sep_time):
     """
     time series cross validation
     yield X, y based on sep_time
     """
+    sep_time = [pd.Timestamp(x) for x in sep_time]
     train_end = sep_time[0]
     for val_end in sep_time[1:]:
         train_idx = df.click_time <= train_end

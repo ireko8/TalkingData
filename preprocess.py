@@ -7,11 +7,10 @@ def proc_all(df):
     process for all of the data
     we limit ip range under config.IP_MAX
     """
-    df['click_hour'] = pd.to_datetime(df.click_time).dt.hour
-    df.drop(['attributed_time', 'click_time'],
-            axis=1,
-            inplace=True)
-    # df = df[df.ip <= config.IP_MAX]
+    df['click_hour'] = df.click_time.dt.hour
+    df = df.drop(['attributed_time'],
+                 axis=1)
+    df = df[df.ip <= config.IP_MAX]
     return df
 
 
@@ -29,19 +28,6 @@ def make_min_leaf(train_df, test_df, logger):
         test_df.loc[test_df[col].isin(few_vals), col] = -1
 
     return train_df, test_df
-
-
-def make_count_encoding(train_df, test_df, cols, logger):
-    """ count encoding for each columns
-    """
-    train_len = train_df.shape[0]
-    data = pd.concat([train_df, test_df])
-    for col in cols:
-        ce_col = f"{col}_ce"
-        vc = data[col].value_counts()
-        data[ce_col] = data[col].apply(lambda x: vc[x])
-
-    return data.loc[:train_len], data.loc[train_len:]
         
 
 def make_embedded_conf(train_df, test_df, logger):
