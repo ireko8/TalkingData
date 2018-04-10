@@ -11,6 +11,7 @@ def proc_all(df):
     df = df.drop(['attributed_time'],
                  axis=1)
     df = df[df.ip <= config.IP_MAX]
+    df = df.drop(['ip'], axis=1)
     return df
 
 
@@ -82,6 +83,7 @@ def proc_sparse_nn(train_df, test_df, logger):
     preprocess for sparse NN
     """
     train_df, test_df = make_min_leaf(train_df, test_df, logger)
+    import ipdb; ipdb.set_trace()
     return make_onehot(train_df, test_df, logger)
 
 

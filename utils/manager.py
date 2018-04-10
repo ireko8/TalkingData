@@ -1,21 +1,33 @@
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, accuracy_score
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.callbacks import ReduceLROnPlateau
 from keras.callbacks import CSVLogger, Callback
 from keras.utils import plot_model
 
 
+def proc_for_valid(df, train_cols, proc=None):
+
+    if proc:
+        valid_X = proc(df[train_cols])
+    else:
+        valid_X = df[train_cols]
+    valid_y = df.is_attributed
+    return (valid_X, valid_y)
+
+
 class AUCLoggingCallback(Callback):
     """Custom logger callback for logging and roc-auc
     """
-    def __init__(self, logger, valid_X, valid_y):
+    def __init__(self, logger, valid_data, test_data):
         super().__init__()
         self.logger = logger
-        self.valid_X = valid_X
-        self.valid_y = valid_y
+        self.valid_X = valid_data[0]
+        self.valid_y = valid_data[1]
+        self.test_X = test_data[0]
+        self.test_y = test_data[1]
 
     def on_epoch_end(self, epoch, logs={}):
         acc = logs['acc']
@@ -30,6 +42,13 @@ class AUCLoggingCallback(Callback):
         mes += f"val_auc {auc:.4f}"
         self.logger.info(mes)
 
+    def on_train_end(self, logs={}):
+        pred = self.model.predict(self.test_X)
+        test_acc = accuracy_score(self.test_y, pred > 0.5)
+        test_auc = roc_auc_score(self.test_y, pred)
+        mes = f"Test: acc {test_acc:.4f}, auc {test_auc:.4f}"
+        self.logger.info(mes)
+    
 
 class NNManager():
     """setting for Neural Net learning
@@ -113,6 +132,7 @@ class NNManager():
         
     def learn(self, train_df, valid_df,
               sample_size,
+              valid_sampling=None,
               epochs=20):
         """main func fot NN training
         """
@@ -124,23 +144,27 @@ class NNManager():
         steps_per_epoch = self.calc_steps(data_size)
 
         # validation data
-        if self.proc_per_gen:
-            valid_X = self.proc_per_gen(valid_df[self.train_cols])
-        else:
-            valid_X = valid_df[self.train_cols]
-        valid_y = valid_df.is_attributed
-        valid_data = (valid_X, valid_y)
+        valid_grouped = valid_df.groupby('is_attributed')
+        valid_samples = valid_grouped.apply(lambda x: x.sample(valid_sampling))
+        valid_data = proc_for_valid(valid_samples,
+                                    self.train_cols,
+                                    self.proc_per_gen)
+        
+        # test data for validation when train end
+        test_data = proc_for_valid(valid_df,
+                                   self.train_cols,
+                                   self.proc_per_gen)
 
         # to calculate auc score on each end of epoch
         auc_callback = AUCLoggingCallback(self.logger,
-                                          valid_X,
-                                          valid_y)
+                                          valid_data,
+                                          test_data)
         self.callbacks.append(auc_callback)
 
         history = self.model.fit_generator(generator=train_gen,
                                            steps_per_epoch=steps_per_epoch,
                                            epochs=epochs,
-                                           verbose=0,
+                                           verbose=1,
                                            callbacks=self.callbacks,
                                            validation_data=valid_data)
         return history

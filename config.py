@@ -15,18 +15,19 @@ EMBEDD_DIM = {'app': 20,
               'os': 20,
               'channel': 20,
               'click_hour': 3}
-UN_THR = {'app': 10,
-          'device': 10,
-          'os': 10,
-          'channel': 10,
-          'click_hour': 10}
+UN_THR = {'app': 100,
+          'device': 100,
+          'os': 100,
+          'channel': 100,
+          'click_hour': 100}
 SEP_TIME = ['2017-11-07 16:00:00',
             '2017-11-08 04:00:00',
             '2017-11-08 16:00:00',
             '2017-11-09 04:00:00',
             '2017-11-09 16:00:00']
-SAMPLE_SIZE = 100
-BATCH_SIZE = 32
+SAMPLE_SIZE = 20000
+VALID_SIZE = 20000
+BATCH_SIZE = 1024
 EPOCHS = 50
 IP_MAX = 126413
 TRAIN_PATH = './input/train.csv.zip'
