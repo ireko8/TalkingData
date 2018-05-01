@@ -1,5 +1,56 @@
 import pandas as pd
 import config
+    
+
+class CustomTargetEncoder():
+    """ customized target encoder
+    """
+    
+    def __init__(self, threshold):
+        self.threshold = threshold
+    
+    def fit(self, df, group, target, col_name):
+        self.group = group
+        self.target = target
+        self.fillna_tm = df[target].mean()
+        self.col_name = col_name
+        
+        grouped_tm = df.groupby(group)[target].agg(['mean', 'count', 'sum'])
+        lows = grouped_tm[grouped_tm['count'] <= self.threshold]
+        few_tm = lows['sum'].sum()/lows['count'].sum()
+        grouped_tm[grouped_tm['count'] <= self.threshold] = few_tm
+        grouped_tm.drop(['count', 'sum'], axis=1, inplace=True)
+        self.tm = grouped_tm.reset_index().rename(columns={'mean': col_name})
+        
+    def transform(self, df):
+        dft = df.merge(self.tm, on=self.group, how='left')
+        dft[self.col_name].fillna(self.fillna_tm, inplace=True)
+        return dft
+
+
+class EmpiricalTargetEncoder():
+    """ make target encode for each groups
+    """
+    def __init__(self):
+        pass
+        
+    def calc_te(self, x):
+        coef = x.count()/self.base_count
+        local_mean = x.mean()
+        return coef*local_mean + (1-coef)+self.base_mean
+        
+    def fit(self, df, group):
+        self.base_mean = df.is_attributed.mean()
+        self.base_count = df.shape[0]
+        self.group = group
+        col_name = '_'.join(group) + '_te'
+        te = df.groupby(group).is_attributed.apply(self.calc_te)
+        te = te.reset_index()
+        te = te.rename(columns={'is_attributed': col_name})
+        self.te = te
+
+    def transform(self, df):
+        return df.merge(self.te, on=self.group)
 
 
 def proc_all(df):
@@ -10,8 +61,8 @@ def proc_all(df):
     df['click_hour'] = df.click_time.dt.hour
     df = df.drop(['attributed_time'],
                  axis=1)
-    df = df[df.ip <= config.IP_MAX]
-    df = df.drop(['ip'], axis=1)
+    # df = df[df.ip <= config.IP_MAX]
+    # df = df.drop(['ip'], axis=1)
     return df
 
 

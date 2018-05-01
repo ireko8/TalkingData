@@ -1,4 +1,6 @@
 import pandas as pd
+import config
+from utils.utils import load_csv
 
 
 def timeseries_cv(df, sep_time):
@@ -15,3 +17,16 @@ def timeseries_cv(df, sep_time):
         train_end = val_end
 
 
+def generate_cv(dir_name, fold_num, debug=None):
+    """
+    genarate cv dataframe in directory
+    """
+
+    for fold in range(fold_num):
+        train_df = load_csv(dir_name + f'fold_{fold}_train.csv',
+                            parse_dates=['click_time'],
+                            n_rows=debug)
+        test_df = load_csv(dir_name + f'fold_{fold}_test.csv',
+                           parse_dates=['click_time'],
+                           n_rows=debug)
+        yield train_df, test_df

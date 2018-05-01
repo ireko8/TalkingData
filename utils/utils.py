@@ -5,29 +5,42 @@ import gc
 import numpy as np
 import pandas as pd
 import dask.dataframe as dd
-import tensorflow as tf
+# import tensorflow as tf
 
 
 def load_csv(fname,
              n_rows=None,
              sampling=None,
              dtypes=None,
-             parse_dates=None):
+             parse_dates=None,
+             compute=True):
     if n_rows:
         df = pd.read_csv(fname,
-                         n_rows=n_rows,
                          dtype=dtypes,
+                         nrows=n_rows,
                          parse_dates=parse_dates)
     else:
-        df = pd.read_csv(fname,
+        df = dd.read_csv(fname,
                          dtype=dtypes,
+                         blocksize=2560000,
                          parse_dates=parse_dates)
-
-    if sampling:
-        df = df.sample(sampling)
-
+        if compute:
+            df = df.compute()
     gc.collect()
-    return dd.from_pandas(df, npartitions=8)
+    return df
+
+
+def load_feather(fname,
+                 n_rows=None,
+                 parse_dates=None):
+    if n_rows:
+        df = pd.read_feather(fname,
+                             nrows=n_rows,
+                             parse_dates=parse_dates)
+    else:
+        df = pd.read_feather(fname)
+    gc.collect()
+    return df
 
 
 def now():
@@ -37,7 +50,7 @@ def now():
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
-    tf.set_random_seed(seed)
+    # tf.set_random_seed(seed)
 
 
 def df_to_list(df):
