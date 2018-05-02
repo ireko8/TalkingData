@@ -179,14 +179,14 @@ def experiment(train=None,
         cv_logger.info("LGBM Baseline validation")
 
         eval_names = ['train',
-                      'valid_all',
+                      # 'valid_all',
                       # 'valid_pub',
                       # 'valid_priv',
                       'valid_lb']
         train_X, train_y = cvtrain_df[train_cols], cvtrain_df.is_attributed
         eval_set = [(train_X, train_y)]
         with cv_logger.interval_timer('valid make'):
-            for df in [valid_df, valid_df2]:
+            for df in [valid_df2]:
                 X, y = df[train_cols], df.is_attributed
                 eval_set.append((X, y))
 
@@ -195,14 +195,18 @@ def experiment(train=None,
             
         lgbm = LGBMClassifier(n_estimators=1000,
                               learning_rate=0.1,
-                              num_leaves=7,
-                              max_depth=3,
+                              num_leaves=31,
+                              max_depth=-1,
                               min_child_samples=20,
+                              min_child_weight=5,
+                              max_bin=255,
                               scale_pos_weight=200,
-                              colsample_bytree=0.9,
-                              subsample=0.7,
+                              colsample_bytree=0.3,
+                              subsample=0.6,
+                              subsample_freq=0,
                               n_jobs=24)
 
+        cv_logger.info(lgbm.get_params())
         lgbm.fit(train_X,
                  train_y,
                  eval_metric="auc",
