@@ -92,7 +92,6 @@ def experiment(train=None,
     with cv_logger.interval_timer('load data'):
         if train:
             train_df = load_feather(train)
-                           
         else:
             fs = Path('preprocessed/features').glob('train_*.csv')
             # fs = ['preprocessed/features/train_nextClick.csv',
@@ -142,9 +141,12 @@ def experiment(train=None,
                   'ip_channel_nunique',
                   'ip_day_hour_ce',
                   'ip_day_nunique',
+                  'ip_day_hour_nunique',
                   'ip_device_nunique',
                   'ip_device_os_app_cumcount',
                   'ip_nextClick',
+                  'ip_os_device_nextClick',
+                  'app_device_channel_nextClick',
                   'ip_os_cumcount',
                   'ip_os_device_app_nunique',
                   'os']

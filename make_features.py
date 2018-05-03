@@ -125,7 +125,8 @@ def make_prev_proc(df, group,
     merge_cols = group + ['prev_hour', 'day']
     df = df.reset_index().merge(vc, on=merge_cols, how='left').set_index('index')
     df = df.sort_index()
-    return df[pf_cols].to_frame(), pf_cols
+    import ipdb; ipdb.set_trace()
+    return df[pf_cols].to_frame().fillna(0), pf_cols
 
 
 def make_shift(df, group):
@@ -373,5 +374,5 @@ if __name__ == '__main__':
                        parser.parse_args().cols,
                        dump_dir,
                        # subproc=parser.parse_args().subproc,
-                       # target=parser.parse_args().target,                       
+                       # target=parser.parse_args().target,
                        test_split=True)
