@@ -2,6 +2,7 @@ import gc
 from pathlib import Path
 from pprint import pformat
 import pandas as pd
+from tqdm import tqdm
 from lightgbm import LGBMClassifier
 import config
 from preprocess import CustomTargetEncoder
@@ -20,9 +21,8 @@ def extract_key(path):
 
 def load_data(base, features, logger, dump=None):
     with logger.interval_timer('base load'):
-        df = load_csv(base,
-                      dtypes=config.TRAIN_DTYPES,
-                      parse_dates=config.TRAIN_PARSE_DATES)
+        df = load_feather(base,
+                          parse_dates=config.TRAIN_PARSE_DATES)
         df['hour'] = df.click_time.dt.hour
         df['day'] = df.click_time.dt.day
         df = df.reset_index(drop=True)
@@ -30,7 +30,7 @@ def load_data(base, features, logger, dump=None):
             df = df.drop('attributed_time', axis=1)
             
     with logger.interval_timer('features'):
-        fs = [load_csv(p).reset_index(drop=True) for p in features]
+        fs = [load_csv(p).reset_index(drop=True) for p in tqdm(features)]
         df = df.join(fs)
 
     if dump:
@@ -51,9 +51,6 @@ def test_sup_merge(test_supplement):
 
 def proc_bf_cv(df):
     cat_cols = ['app', 'ip', 'device', 'hour', 'os', 'channel']
-    td_cols = [c for c in df.columns if 'td' in c]
-    df[td_cols] = df[td_cols] == 0
-    cat_cols += td_cols
     for c in cat_cols:
         df[c] = df[c].astype('category')
     return df
@@ -77,7 +74,8 @@ def custom_encode(train_df, valid_df, encode_list, threshold, logger):
 
 
 def experiment(train=None,
-               test=None):
+               test=None,
+               seed=None):
     """experiment func
     """
     
@@ -92,14 +90,15 @@ def experiment(train=None,
     with cv_logger.interval_timer('load data'):
         if train:
             train_df = load_feather(train)
+            # train_df = train_df.sample(100000)
         else:
             fs = Path('preprocessed/features').glob('train_*.csv')
             # fs = ['preprocessed/features/train_nextClick.csv',
             #       'preprocessed/features/train_ip_app_nextClick.csv']
             train_df = load_data(config.TRAIN_PATH, fs, cv_logger,
                                  dump='preprocessed/train.ftr')
-        offset = pd.to_datetime('2017-11-07 16:00:00')
-        train_df = train_df[train_df.click_time >= offset]
+            # offset = pd.to_datetime('2017-11-07 16:00:00')
+        # train_df = train_df[train_df.click_time >= offset]
         gc.collect()
         if test:
             test_df = load_feather(test)
@@ -114,7 +113,8 @@ def experiment(train=None,
 
     train_df = train_df.reset_index(drop=True)
     test_df = test_df.reset_index(drop=True)
-    
+
+    cv_logger.info(config.SEP_TIME)
     with cv_logger.interval_timer('split'):
         split_gen = enumerate(timeseries_cv(train_df,
                                             config.SEP_TIME))
@@ -166,6 +166,8 @@ def experiment(train=None,
             cvtrain_df = train_df.loc[train_idx]
             valid_df = train_df.loc[valid_idx]
             valid_df2 = valid_df[valid_df.hour.isin(valid_time)]
+            cv_logger.info(f'train size {cvtrain_df.shape}')
+            cv_logger.info(f'valid size {valid_df2.shape}')
             # valid_df3 = valid_df[valid_df.hour == 4]
             # valid_df4 = valid_df[valid_df.hour.isin(public_time)]
             # with cv_logger.interval_timer('target encode'):
@@ -180,17 +182,15 @@ def experiment(train=None,
             
         cv_logger.info("LGBM Baseline validation")
 
-        eval_names = ['train',
-                      # 'valid_all',
-                      # 'valid_pub',
-                      # 'valid_priv',
-                      'valid_lb']
+        eval_names = ['valid_lb']
         train_X, train_y = cvtrain_df[train_cols], cvtrain_df.is_attributed
-        eval_set = [(train_X, train_y)]
+        eval_set = []
         with cv_logger.interval_timer('valid make'):
             for df in [valid_df2]:
                 X, y = df[train_cols], df.is_attributed
                 eval_set.append((X, y))
+            cv_logger.info(f'train size {train_X.shape}')
+            cv_logger.info(f'valid size {eval_set[0][0].shape}')
 
             cv_logger.info(list(train_X.columns))
             gc.collect()
@@ -206,6 +206,7 @@ def experiment(train=None,
                               colsample_bytree=0.3,
                               subsample=0.6,
                               subsample_freq=0,
+                              random_state=seed,
                               n_jobs=24)
 
         cv_logger.info(lgbm.get_params())
@@ -247,13 +248,16 @@ def experiment(train=None,
     test_df['is_attributed'] = pred[:, 1]
     test_df['click_id'] = test_df.click_id.astype('uint32')
     sub = test_sup_merge(test_df)
-    sub[['click_id', 'is_attributed']].to_csv(f'sub/{cv_name}.csv',
+    sub[['click_id', 'is_attributed']].to_csv(f'sub/{cv_name}_{seed}.csv',
                                               index=False)
     
     cv_logger.info("Experiment Done")
 
 
 if __name__ == '__main__':
-    set_seed(2018)
-    experiment(train='preprocessed/train.ftr',
-               test='preprocessed/test.ftr')
+    for seed in [5018]:
+        print(seed)
+        set_seed(seed)
+        experiment(train='preprocessed/train.ftr',
+                   test='preprocessed/test.ftr',
+                   seed=seed)

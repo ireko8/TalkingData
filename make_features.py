@@ -6,10 +6,11 @@ import numpy as np
 import dask.dataframe as dd
 import pandas as pd
 from tqdm import tqdm
+import ipdb
 import config
 from validation import timeseries_cv, generate_cv
 from utils.logger import Logger
-from utils.utils import load_csv, set_seed, now
+from utils.utils import load_feather, set_seed, now
 
 
 def to_parallel(df, process, groups):
@@ -28,22 +29,31 @@ def to_parallel(df, process, groups):
 def make_td(df, cols):
     """ make first flag for given columns
     """
-    ct = "click_time"
+    print("loaded")
     if isinstance(cols, list):
         c = '_'.join(cols)
     else:
         c = cols
     fc_col = f"{c}_ft"
-    td_col = f"{c}_td"
-        
-    first_click = df.groupby(cols).click_time.min().reset_index()
-    first_click = first_click.rename(columns={'click_time': fc_col})
-    df = df.reset_index().merge(first_click, on=cols).set_index('index')
-    df[td_col] = df[ct] - df[fc_col]
-    df = df.sort_index()
+    td_col = f"{c}_td2"
+    # df = df.reset_index().sort_values('click_time')
+    print("sorted")
+    first_click = df.groupby(cols).click_time.shift(-1)
+    print("shifted")
+    df[fc_col] = first_click
+    df[td_col] = df[fc_col] - df.click_time
+    print("delta calculated")
     df = df.drop([fc_col], axis=1)
-
-    return pd.DataFrame(df[td_col]), td_col
+    vx = df[df[td_col].notnull()].groupby(cols)[td_col].median()
+    vx = vx.reset_index().rename(columns={td_col: 'med'})
+    df = df.merge(vx, on=cols, how='left')
+    df.loc[df[td_col].isnull(), td_col] = df.loc[df[td_col].isnull(), 'med']
+    print("median imputing end")
+    df[td_col] = df[td_col].fillna(-1)
+    df.drop('med', axis=1, inplace=True)
+    # df = df.set_index('index').sort_index()
+    print("end")
+    return df[td_col].to_frame(), td_col
 
 
 def make_diff(df, cols):
@@ -57,17 +67,16 @@ def make_diff(df, cols):
     df = df.reset_index().sort_values(ct)
     df[td_col] = df.groupby(cols)[[ct]].transform(lambda x: x.diff())
     td = df.set_index('index').sort_index()
-    td = td.fillna(0).reset_index().rename(columns={'click_time': td_col})
-    import ipdb; ipdb.set_trace()
+    td = td.fillna(10**10).reset_index().rename(columns={'click_time': td_col})
     return td[td_col].to_frame(), td_col
 
 
 def make_diff2(df, group):
     col_name = '_'.join(group)
-    new_feature = col_name + '_nextClick'
+    new_feature = col_name + '_nextClick_test'
     D = 2**26
-    # df = df.reset_index()
     # df = df.sort_values('click_time')
+    # df = df.reset_index()
     df['category'] = ''
     for c in tqdm(group):
         df['category'] += df[c].astype(str) + "_"
@@ -82,6 +91,36 @@ def make_diff2(df, group):
     df[new_feature] = pd.Series(QQ).astype('float32')
     gc.collect()
     # df = df.set_index('index').sort_index()
+    return df[new_feature].to_frame(), new_feature
+
+
+def make_diff3(df, group):
+    col_name = '_'.join(group)
+    new_feature = col_name + '_nextClick2'
+    D = 2**26
+    df = df.reset_index().sort_values('click_time')
+    df['category'] = ''
+    for c in tqdm(group):
+        df['category'] += df[c].astype(str) + "_"
+    df['category'] = df['category'].apply(hash) % D
+    click_buffer = np.full(D, 3000000000, dtype=np.uint32)
+    next_clicks = []
+    for category, t in tqdm(zip(reversed(df['category'].values), reversed(df['click_time'].values))):
+        next_clicks.append(click_buffer[category]-t)
+        click_buffer[category] = t
+    del(click_buffer)
+    QQ = list(reversed(next_clicks))
+    df[new_feature] = pd.Series(QQ).astype('float32')
+    vx = df[df[new_feature] <= 10**9].groupby("category")[new_feature].median()
+    vx = vx.reset_index().rename(columns={new_feature: 'under_med'})
+    df = df.merge(vx, on='category', how='left')
+    df.loc[df[new_feature] > 10**9, new_feature] = df.loc[df[new_feature] > 10**9, 'under_med']
+    df.drop('under_med', axis=1, inplace=True)
+    gc.collect()
+    ipdb.set_trace()
+    df = df.set_index('index').sort_index()
+    df[new_feature] = df[new_feature].fillna(-1)
+    ipdb.set_trace()
     return df[new_feature].to_frame(), new_feature
 
 
@@ -113,20 +152,21 @@ def make_prev(df, group):
     return df[new_feature].to_frame(), new_feature
 
 
-def make_prev_proc(df, group,
+def make_next_proc(df, group,
                    target=None,
                    proc=None,
                    shift=1):
-    df['prev_hour'] = df.hour - 1
-    pf_cols = f"{'_'.join(group)}_prevcount"
+    df['next_hour'] = df.hour + 1
+    pf_cols = f"{'_'.join(group)}_nextcount"
     group_cols = group + ['hour', 'day']
     vc = df.groupby(group_cols).size().reset_index()
-    vc = vc.rename(columns={'hour': 'prev_hour', 0: pf_cols})
-    merge_cols = group + ['prev_hour', 'day']
+    vc = vc.rename(columns={'hour': 'next_hour', 0: pf_cols})
+    merge_cols = group + ['next_hour', 'day']
     df = df.reset_index().merge(vc, on=merge_cols, how='left').set_index('index')
     df = df.sort_index()
+    df[pf_cols] = df[pf_cols].fillna(0)
     import ipdb; ipdb.set_trace()
-    return df[pf_cols].to_frame().fillna(0), pf_cols
+    return df[pf_cols].to_frame(), pf_cols
 
 
 def make_shift(df, group):
@@ -227,20 +267,18 @@ def construct_features(proc,
                        test_split=False):
     """ construct feature and dump it distinctly
     """
-    df = load_csv(config.TRAIN_PATH,
-                  dtypes=config.TRAIN_DTYPES,
-                  parse_dates=config.TRAIN_PARSE_DATES)
+    df = load_feather(config.TRAIN_PATH,
+                      parse_dates=config.TRAIN_PARSE_DATES)
     if test_split:
-        test_df = load_csv(config.TEST_PATH,
-                           dtypes=config.TEST_DTYPES,
-                           parse_dates=config.TEST_PARSE_DATES)
+        test_df = load_feather(config.TEST_PATH,
+                               parse_dates=config.TEST_PARSE_DATES)
         train_len = df.shape[0]
         df = pd.concat([df, test_df])
     df = df.reset_index(drop=True)
     df['hour'] = df.click_time.dt.hour
     df['day'] = df.click_time.dt.day
     df['click_time'] = df.click_time.astype('int64') // 10**9
-    df.drop('attributed_time', axis=1, inplace=True)
+    # df.drop('attributed_time', axis=1, inplace=True)
     if target:
         if subproc:
             f1, col_name = proc(df, group, target, subproc)
@@ -370,9 +408,9 @@ if __name__ == '__main__':
     Path(dump_dir).mkdir(exist_ok=True, parents=True)
     parser = parser()
     print(parser.parse_args().cols)
-    construct_features(make_prev_proc,
+    construct_features(make_diff2,
                        parser.parse_args().cols,
                        dump_dir,
-                       # subproc=parser.parse_args().subproc,
                        # target=parser.parse_args().target,
+                       # subproc=parser.parse_args().subproc,
                        test_split=True)

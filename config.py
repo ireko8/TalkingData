@@ -37,14 +37,14 @@ UN_THR = {'app': 100,
           'os': 100,
           'channel': 100,
           'click_hour': 100}
-SEP_TIME = ['2017-11-08 16:00:00',
+SEP_TIME = ['2017-11-09 15:30:00',
             '2017-11-09 16:00:00']
 SAMPLE_SIZE = 20000
 VALID_SIZE = 20000
 BATCH_SIZE = 1024
 EPOCHS = 50
 IP_MAX = 126413
-TRAIN_PATH = 'input/train.csv'
-TEST_PATH = 'input/test_supplement.csv'
+TRAIN_PATH = 'input/train.ftr'
+TEST_PATH = 'input/test_supplement.ftr'
 PREPROCESSED_FEATURES = 'preprocessed/all_td.csv'
 PREPROCESSED_TEST = 'preprocessed/test.csv'

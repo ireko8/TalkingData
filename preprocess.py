@@ -1,5 +1,7 @@
 import pandas as pd
+from lightgbm import LGBMRegressor
 import config
+from utils.utils import load_feather
     
 
 class CustomTargetEncoder():
@@ -52,6 +54,25 @@ class EmpiricalTargetEncoder():
     def transform(self, df):
         return df.merge(self.te, on=self.group)
 
+
+def impute_nextclick(df, threshold):
+    """ impute test nextclick to avoid shakeup
+    """
+    nextclick_cols = df.columns.isin('nextClick')
+    train_df = df[(df[nextclick_cols] <= threshold).all()]
+    target_df = df[(df[nextclick_cols] > threshold).all()]
+    for c in nextclick_cols:
+        train_cols = [x for x in train_df.columns if x != c]
+        train_cols.remove(['is_attributed', 'click_id'])
+        train_X, train_y = train_df[train_cols], train_df[c]
+        reg = LGBMRegressor()
+        reg.fit(train_X, train_y)
+        target_df[c] = reg.predict(target_df[train_cols])
+        import ipdb; ipdb.set_trace()
+    df = pd.concat([train_df, target_df])
+    import ipdb; ipdb.set_trace()
+    return df
+    
 
 def proc_all(df):
     """
@@ -139,5 +160,10 @@ def proc_sparse_nn(train_df, test_df, logger):
 
 
 def proc_xgb(train_df, test_df, cols, logger):
-    # return make_min_leaf(train_df, test_df, logger)
-    return make_count_encoding(train_df, test_df, cols, logger)
+    return make_min_leaf(train_df, test_df, logger)
+    
+
+if __name__ == '__main__':
+    df = load_feather('preprocessed/test.ftr')
+    import ipdb; ipdb.set_trace()
+    df = impute_nextclick(df, 10**9)
